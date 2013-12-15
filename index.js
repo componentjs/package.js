@@ -394,7 +394,12 @@ Package.prototype.reallyInstall = function(){
 
   function next() {
     self.remote = self.remotes[i++];
-    if (!self.remote) return self.emit('error', new Error('can\'t find remote for "' + self.name + '"'));
+    if (!self.remote) {
+      return self.destroy(function (error) {
+        if (error) self.emit('error', error);
+        self.emit('error', new Error('can\'t find remote for "' + self.name + '"'));
+      });
+    }
 
     // parse remote
     last = i == self.remotes.length;
@@ -412,10 +417,7 @@ Package.prototype.reallyInstall = function(){
     self.getJSON(function(err, json){
       if (err) {
         err.fatal = 404 != err.status || last;
-        return self.destroy(function(error){
-          if (error) self.emit('error', error);
-          self.emit('error', err);
-        });
+        return self.emit('error', err);
       }
 
       var files = [];
@@ -450,14 +452,10 @@ Package.prototype.reallyInstall = function(){
       batch.end(function(err){
         if (err) {
           err.fatal = last;
-          self.destroy(function(error){
-            if (error) self.emit('error', error);
-            self.emit('error', err);
-            self.emit('end');
-          });
-        } else {
-          self.emit('end');
+          self.emit('error', err);
         }
+
+        self.emit('end');
       });
     });
   }
