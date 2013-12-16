@@ -40,4 +40,14 @@ describe('Package.js', function () {
       pkg.url('index.js').should.eql('https://raw.github.com/' + repo + '/' + version + '/index.js');
     });
   });
+
+  describe('Install', function () {
+    var pkg = new Package('component/domify', '1.1.1', {
+      dest: path.join(__dirname, '..', 'components')
+    })
+
+    it('should install', function (done) {
+      pkg.end(done)
+    })
+  })
 });
