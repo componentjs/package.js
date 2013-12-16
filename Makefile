@@ -11,6 +11,7 @@ node_modules: package.json
 
 test: node_modules
 	@$(BIN)mocha \
+		--harmony-generators \
 		--require should \
 		--reporter spec
 
