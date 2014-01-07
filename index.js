@@ -154,25 +154,15 @@ Package.prototype.destroy = function(fn){
 };
 
 /**
- * Get local json if the component is installed
- * and callback `fn(err, obj)`.
+ * Check if the package exists locally.
  *
  * @param {Function} fn
  * @api private
  */
 
-Package.prototype.getLocalJSON = function(fn){
+Package.prototype.exists = function(fn){
   var path = this.join('component.json');
-  fs.readFile(path, 'utf8', function(err, json){
-    if (err) return fn(err);
-    try {
-      json = JSON.parse(json);
-    } catch (err) {
-      err.message += ' in ' + path;
-      return fn(err);
-    }
-    fn(null, json);
-  });
+  fs.exists(path, fn);
 };
 
 /**
@@ -365,16 +355,13 @@ Package.prototype.install = function(){
     return this.emit('error', new Error('invalid component name "' + name + '"'));
   }
 
-  this.getLocalJSON(function(err, json){
-    if (err && err.code == 'ENOENT') {
-      self.reallyInstall();
-    } else if (err) {
-      self.emit('error', err);
-    } else if (!self.force) {
+  this.exists(function(exists){
+    if (exists && !self.force) {
       self.emit('exists', self);
-    } else {
-      self.reallyInstall();
+      return;
     }
+
+    self.reallyInstall();
   });
 };
 
