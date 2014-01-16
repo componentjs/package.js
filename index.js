@@ -96,7 +96,7 @@ inherit(Package, Emitter);
  */
 
 Package.prototype.dirname = function(){
-  return resolve(this.dest, this.name.split('/').join('-'));
+  return resolve(this.dest, this.name.toLowerCase().split('/').join('-'));
 };
 
 /**
