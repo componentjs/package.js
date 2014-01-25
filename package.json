@@ -16,7 +16,7 @@
     "debug": "*",
     "rimraf": "~2.1.4",
     "proxy-agent": "~1.1.0",
-    "superagent-proxy": "~0.2.0"
+    "superagent-proxy": "~0.3.0"
   },
   "devDependencies": {
     "mocha": "*",
