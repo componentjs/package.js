@@ -10,8 +10,6 @@ var basename = path.basename;
 var extname = path.extname;
 var resolve = path.resolve;
 var mkdir = require('mkdirp').mkdirp;
-var request = require('superagent');
-var netrc = require('netrc');
 var debug = require('debug')('component:package');
 var Batch = require('batch');
 var url = require('url');
@@ -20,14 +18,9 @@ var fs = require('fs');
 var rimraf = require('rimraf');
 var http = require('http');
 var https = require('https');
-var proxyAgent = require('proxy-agent');
 var inherit = require('util').inherits;
-
-/**
- * Extend superagent with proxy support
- */
-
-require('superagent-proxy')(request);
+var co = require('co');
+var request = co(require('cogent'));
 
 /**
  * In-flight requests.
@@ -68,7 +61,7 @@ function Package(pkg, version, options) {
   this.dest = options.dest || 'components';
   this.remotes = options.remotes || ['https://raw.github.com'];
   this.auth = options.auth;
-  this.netrc = netrc(options.netrc);
+  this.netrc = options.netrc;
   this.force = !! options.force;
   this.proxy = options.proxy || process.env.https_proxy;
   this.version = version;
@@ -176,34 +169,20 @@ Package.prototype.getJSON = function(fn){
   var url = this.url('component.json');
 
   debug('fetching %s', url);
-  var req = request.get(url);
-  req.set('Accept-Encoding', 'gzip');
-
-  // Add proxy
-  if (this.proxy) req.proxy(this.proxy);
-
-  // authorize call
-  var hostname = parse(url).hostname;
-  var auth = encodeAuth(this, hostname);
-  if (auth) req.set('Authorization', auth);
-
-  req.end(function(res){
-    if (res.error) return fn(error(res, url));
-    var json;
-    try {
-      debug('got %s', url);
-      json = JSON.parse(res.text);
-    } catch (err) {
-      err.message += ' in ' + url;
-      return fn(err);
+  request(url, {
+    proxy: this.proxy,
+    netrc: this.netrc,
+    auth: this.auth,
+    json: true,
+  }, function (err, res) {
+    if (err) {
+      if ('getaddrinfo' == err.syscall) err.message = 'dns lookup failed';
+      fn(err);
+      return;
     }
-    fn(null, json);
-  });
-
-  req.on('error', function(err){
-    if ('getaddrinfo' == err.syscall) err.message = 'dns lookup failed';
-    fn(err);
-  });
+    if (res.statusCode !== 200) return fn(error(res, url));
+    fn(null, res.body);
+  })
 };
 
 /**
@@ -227,70 +206,20 @@ Package.prototype.getFiles = function(files, fn){
       self.emit('file', file, url);
       var dst = self.join(file);
 
-      // mkdir
-      self.mkdir(dirname(dst), function(err){
+      request(url, {
+        proxy: self.proxy,
+        netrc: self.netrc,
+        auth: self.auth,
+        destination: dst,
+      }, function (err, res) {
         if (err) return done(err);
-
-        // TODO: add gzip support back
-        var req = self.request(url);
-
-        req.on('error', done);
-        req.on('response', function(res){
-          if (200 != res.statusCode) return done(error(res, url));
-          var stream = fs.createWriteStream(dst);
-          stream.on('error', done);
-          res.pipe(stream);
-          res.on('end', done);
-        });
-
-        req.end();
-
-        // TODO: fix superagent...
-        // pipe file
-        //var req = request.get(url);
-        //req.set('Accept-Encoding', 'gzip');
-        //req.buffer(false);
-
-        // authorize call
-        //var netrc = self.netrc[self.remote.host];
-        //if (netrc) req.auth(netrc.login, netrc.password);
-        //if (self.auth) req.auth(self.auth.user, self.auth.pass);
-
-        //req
-        //.on('end', done)
-        //.on('error', done)
-        //.pipe(fs.createWriteStream(dst))
-        //.on('error', done);
+        if (res.statusCode !== 200) return done(err(res, url));
+        done();
       });
     });
   });
 
   batch.end(fn);
-};
-
-/**
- * TODO: remove me when superagent is fixed...
- */
-
-Package.prototype.request = function(url){
-  var secure = 0 == url.indexOf('https://');
-  var mod = secure ? https : http;
-  var headers = {};
-  var opts = parse(url);
-
-  // authorize call
-  var hostname = opts.hostname;
-  var auth = encodeAuth(this, hostname);
-  if (auth) headers.Authorization = auth;
-
-  // add proxy
-  if (this.proxy) {
-    var agent = proxyAgent(this.proxy, secure);
-    if (agent) opts.agent = agent;
-  }
-
-  opts.headers = headers;
-  return mod.get(opts);
 };
 
 /**
@@ -462,26 +391,4 @@ function error(res, url) {
   var err = new Error('failed to fetch ' + url + ', got ' + res.statusCode + ' "' + name + '"');
   err.status = res.statusCode;
   return err;
-}
-
-/**
- * Returns an HTTP Basic auth header string, either from being manually
- * passed in credentials or from the .netrc file, or `null` if no
- * authentication information is found.
- *
- * @param {Package} pkg
- * @param {String} hostname
- * @return {String}
- * @api private
- */
-
-function encodeAuth(pkg, hostname) {
-  var str = null;
-  var auth = pkg.auth || pkg.netrc[hostname];
-  if (auth) {
-    var u = auth.user || auth.username || auth.login;
-    var p = auth.pass || auth.password;
-    str = 'Basic ' + new Buffer(u + ':' + p).toString('base64');
-  }
-  return str;
 }
