@@ -37,7 +37,7 @@ describe('Package.js', function () {
 
   describe('#url(file)', function () {
     it('should return the url', function () {
-      pkg.url('index.js').should.eql('https://raw.github.com/' + repo + '/' + version + '/index.js');
+      pkg.url('index.js').should.eql('https://raw.githubusercontent.com/' + repo + '/' + version + '/index.js');
     });
   });
 });
