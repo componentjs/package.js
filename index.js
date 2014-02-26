@@ -66,7 +66,7 @@ function Package(pkg, version, options) {
   this.name = pkg;
   this.slug = pkg + '@' + version;
   this.dest = options.dest || 'components';
-  this.remotes = options.remotes || ['https://raw.github.com'];
+  this.remotes = options.remotes || ['https://raw.githubusercontent.com'];
   this.auth = options.auth;
   this.netrc = netrc(options.netrc);
   this.force = !! options.force;
